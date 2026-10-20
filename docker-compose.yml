@@ -1,0 +1,58 @@
+services:
+  backseat-dj:
+    build: .
+    image: backseat-dj:latest
+    container_name: backseat-dj
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${HOST_PORT:-8787}:8080" # for a reverse proxy or local testing
+    volumes:
+      - backseat-dj-data:/data
+    # Locked down: the app can only write to its own data volume, has no Linux capabilities
+    # and can't gain privileges.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
+
+  # Option A: its own Tailscale machine, serving https://backseat-dj.<your-tailnet>.ts.net publicly.
+  # Enable with COMPOSE_PROFILES=tailscale and TS_AUTHKEY in .env.
+  backseat-dj-tailscale:
+    profiles: ["tailscale"]
+    image: tailscale/tailscale:latest
+    container_name: backseat-dj-tailscale
+    restart: unless-stopped
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_HOSTNAME=backseat-dj
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+      - TS_SERVE_CONFIG=/config/serve.json
+    volumes:
+      - backseat-dj-tailscale-state:/var/lib/tailscale
+      - ./tailscale-serve.json:/config/serve.json:ro
+    depends_on:
+      - backseat-dj
+
+  # Option B: a Cloudflare Tunnel. In the Cloudflare dashboard, point the tunnel's public
+  # hostname at http://backseat-dj:8080. Enable with COMPOSE_PROFILES=cloudflare.
+  backseat-dj-cloudflared:
+    profiles: ["cloudflare"]
+    image: cloudflare/cloudflared:latest
+    container_name: backseat-dj-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - backseat-dj
+
+volumes:
+  backseat-dj-data:
+  backseat-dj-tailscale-state:

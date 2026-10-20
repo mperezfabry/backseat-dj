@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<title>Backseat DJ Admin</title>
+<style>
+  :root { --bg: #0f1115; --card: #1a1d24; --line: #2a2e38; --text: #f2f3f5; --muted: #9aa0ab; --accent: #1ed760; --danger: #ff6b6b; --warn: #f5c451; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 1.4rem; margin: 4px 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 12px 0; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .muted { color: var(--muted); }
+  .ok { color: var(--accent); } .bad { color: var(--danger); } .warn { color: var(--warn); }
+  a.button, button { display: block; width: 100%; text-align: center; font: inherit; font-weight: 700; border: 0; border-radius: 999px; padding: 16px; margin: 12px 0; cursor: pointer; text-decoration: none; }
+  .end { background: var(--danger); color: #2a0606; font-size: 1.15rem; }
+  .connect { background: var(--accent); color: #06210f; }
+  .secondary { background: var(--line); color: var(--text); }
+  ul { margin: 6px 0 0; padding-left: 20px; }
+  [hidden] { display: none !important; }
+  #printCard { display: none; }
+  @media print {
+    body { background: #fff; color: #000; }
+    main { display: none; }
+    #printCard { display: block; text-align: center; font-family: system-ui, sans-serif; padding: 24px; }
+    #printCard img { width: 70%; max-width: 360px; }
+    #printCard h2 { font-size: 2rem; margin: 0 0 8px; }
+    #printCard p { font-size: 1.1rem; margin: 6px 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎛️ Backseat DJ</h1>
+
+  <button class="end" id="endBtn">End ride &amp; purge rider songs</button>
+
+  <div class="card" id="status">Loading…</div>
+
+  <a class="button connect" id="connectBtn" href="/admin/connect-spotify" hidden>Connect Spotify</a>
+  <button class="secondary" id="printBtn">Print the QR card</button>
+  <button class="secondary" id="clearBansBtn">Clear banned phones</button>
+  <a class="button secondary" href="/admin/connect-spotify">Reconnect Spotify</a>
+</main>
+
+<div id="printCard">
+  <h2>🎵 Pick the music</h2>
+  <p>Scan with your phone camera to queue songs on this car’s Spotify.</p>
+  <img src="/admin/qr.svg" alt="QR code">
+  <p>Up to <span id="printLimit">5</span> songs at a time. No app or login needed.</p>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function row(label, value, cls = '') {
+    const div = document.createElement('div');
+    div.className = 'row';
+    const l = document.createElement('span');
+    l.className = 'muted';
+    l.textContent = label;
+    const v = document.createElement('span');
+    v.className = cls;
+    v.textContent = value;
+    div.append(l, v);
+    return div;
+  }
+
+  function ago(seconds) {
+    if (seconds < 90) return `${seconds}s ago`;
+    if (seconds < 5400) return `${Math.round(seconds / 60)} min ago`;
+    return `${Math.round(seconds / 3600)} h ago`;
+  }
+
+  async function refresh() {
+    let s;
+    try {
+      const res = await fetch('/admin/api/status');
+      s = await res.json();
+    } catch {
+      $('status').replaceChildren(row('Server', 'unreachable', 'bad'));
+      return;
+    }
+    $('connectBtn').hidden = s.spotifyConnected;
+    $('printLimit').textContent = s.songLimit;
+    const rows = [
+      row('Spotify', s.spotifyConnected ? 'connected' : 'not connected', s.spotifyConnected ? 'ok' : 'bad'),
+      row('Now playing', s.nowPlaying ? `${s.nowPlaying.name} — ${s.nowPlaying.artists}` : '—'),
+      row('Ride', s.ride ? `active, ${s.ride.devices} phone(s)` : 'none', s.ride ? 'ok' : 'muted'),
+    ];
+    if (s.ride?.songs.length) {
+      const list = document.createElement('ul');
+      for (const song of s.ride.songs) {
+        const li = document.createElement('li');
+        li.textContent = `${song.name} — ${song.artists}${song.status === 'playing' ? ' (playing)' : ''}`;
+        list.append(li);
+      }
+      const div = row('Rider songs', '');
+      div.lastChild.replaceWith(list);
+      rows.push(div);
+    }
+    rows.push(row('Banned phones', String(s.bannedPhones), 'muted'));
+    if (s.songsBeingPurged) rows.push(row('Leftover songs to skip', String(s.songsBeingPurged), 'warn'));
+    $('status').replaceChildren(...rows);
+  }
+
+  $('endBtn').onclick = async () => {
+    await fetch('/admin/api/end-ride', { method: 'POST' });
+    refresh();
+  };
+  $('clearBansBtn').onclick = async () => {
+    await fetch('/admin/api/clear-bans', { method: 'POST' });
+    refresh();
+  };
+  $('printBtn').onclick = () => window.print();
+
+  refresh();
+  setInterval(refresh, 5000);
+</script>
+</body>
+</html>

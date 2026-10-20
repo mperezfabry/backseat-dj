@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Backseat DJ — pick the music</title>
+<style>
+  :root {
+    --bg: #0b0d12; --surface: #151922; --surface-2: #1d2230; --line: #262c3b;
+    --text: #f4f5f8; --muted: #98a0b3; --accent: #1ed760; --accent-ink: #04210d;
+    --danger: #ff6b6b; --radius: 16px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; min-height: 100vh; }
+  main { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(40px + env(safe-area-inset-bottom)); }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  img { display: block; }
+  [hidden] { display: none !important; }
+
+  /* ---------- brand ---------- */
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.01em; margin: 4px 0 16px; }
+  .brand .logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #1ed760, #0aa5ff); display: grid; place-items: center; color: #04210d; font-size: 17px; }
+  .brand .pill { margin-left: auto; font-size: .75rem; font-weight: 600; color: var(--accent); background: rgba(30, 215, 96, .12); padding: 4px 10px; border-radius: 999px; }
+
+  /* ---------- join / ended ---------- */
+  .hero { text-align: center; padding: 48px 8px 24px; }
+  .hero .big { font-size: 64px; line-height: 1; margin-bottom: 16px; }
+  .hero h1 { font-size: 1.9rem; margin: 0 0 8px; letter-spacing: -.02em; }
+  .hero p { color: var(--muted); margin: 0 auto 28px; max-width: 340px; }
+  .primary { display: block; width: 100%; padding: 16px 22px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 800; font-size: 1.05rem; }
+  .primary:disabled { opacity: .6; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 28px; text-align: center; font-size: .85rem; color: var(--muted); }
+  .steps div span { display: block; font-size: 22px; margin-bottom: 4px; }
+  .error { color: var(--danger); min-height: 1.4em; margin: 12px 0 0; text-align: center; }
+
+  /* ---------- now playing ---------- */
+  .now { position: relative; overflow: hidden; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); padding: 14px; display: grid; grid-template-columns: 76px 1fr; gap: 14px; align-items: center; }
+  .now .bg { position: absolute; inset: -40px; background-size: cover; background-position: center; filter: blur(40px) saturate(1.4); opacity: .35; }
+  .now > *:not(.bg) { position: relative; }
+  .now img, .now .noart { width: 76px; height: 76px; border-radius: 10px; background: var(--surface-2); object-fit: cover; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  .now .eyebrow { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .now .title { font-weight: 700; font-size: 1.05rem; }
+  .now .title, .now .artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .now .artist { color: var(--muted); font-size: .9rem; }
+  .bar { height: 4px; border-radius: 4px; background: rgba(255,255,255,.12); margin-top: 10px; overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: var(--text); border-radius: 4px; transition: width 1s linear; }
+  .skip { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: 12px; background: rgba(255,255,255,.08); font-weight: 650; }
+  .skip:disabled { opacity: .55; }
+  .skip small { color: var(--muted); font-weight: 500; }
+
+  /* ---------- your songs ---------- */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 10px; }
+  .section-head h2 { font-size: 1.1rem; margin: 0; letter-spacing: -.01em; }
+  .section-head .count { color: var(--muted); font-size: .85rem; }
+  .meter { display: flex; gap: 4px; margin-bottom: 10px; }
+  .meter i { flex: 1; height: 4px; border-radius: 4px; background: var(--line); }
+  .meter i.on { background: var(--accent); }
+  .list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 12px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row img, .row .noart { width: 46px; height: 46px; border-radius: 7px; flex: none; background: var(--surface-2); object-fit: cover; }
+  .row .meta { flex: 1; min-width: 0; }
+  .row .name, .row .artists { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .artists { color: var(--muted); font-size: .88rem; }
+  .tag { font-size: .72rem; font-weight: 700; padding: 4px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); flex: none; }
+  .tag.playing { color: var(--accent); background: rgba(30, 215, 96, .12); }
+  .empty { color: var(--muted); padding: 14px 0; text-align: center; font-size: .92rem; }
+
+  /* ---------- search ---------- */
+  .search { position: sticky; top: 0; z-index: 5; margin: 26px -16px 0; padding: 10px 16px; background: linear-gradient(var(--bg) 75%, transparent); }
+  .search form { position: relative; }
+  .search input { width: 100%; font: inherit; padding: 14px 44px 14px 46px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text); outline: none; }
+  .search input:focus { border-color: #3a4256; }
+  .search .icon { position: absolute; left: 17px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .search .clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; color: var(--muted); }
+  .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 4px -16px 0; padding: 4px 16px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: .9rem; font-weight: 600; }
+  .chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  /* ---------- carousels ---------- */
+  .shelf { display: grid; grid-auto-flow: column; grid-auto-columns: 136px; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; }
+  .shelf::-webkit-scrollbar { display: none; }
+  .card { scroll-snap-align: start; position: relative; text-align: left; }
+  .card .art { position: relative; }
+  .card img, .card .noart { width: 136px; height: 136px; border-radius: 12px; object-fit: cover; background: var(--surface-2); }
+  .card .add { position: absolute; right: 8px; bottom: 8px; width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 22px; font-weight: 800; display: grid; place-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+  .card .add.done { background: var(--text); color: var(--bg); font-size: 18px; }
+  .card .add:disabled:not(.done) { opacity: .5; }
+  .card .name { font-weight: 650; font-size: .92rem; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .artists { color: var(--muted); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .add { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); font-size: 20px; font-weight: 800; display: grid; place-items: center; }
+  .row .add.done { background: var(--accent); color: var(--accent-ink); font-size: 16px; }
+  .row .add:disabled:not(.done) { opacity: .4; }
+  .back { color: var(--accent); font-weight: 650; font-size: .9rem; }
+  .skeleton { height: 180px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* ---------- toast ---------- */
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 999px; font-weight: 650; font-size: .92rem; transition: .25s; max-width: calc(100% - 32px); text-align: center; z-index: 10; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.bad { background: var(--danger); color: #2a0606; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand"><div class="logo">♪</div>Backseat DJ<span class="pill" id="ridePill" hidden>In this ride</span></div>
+
+  <section id="join" hidden>
+    <div class="hero">
+      <div class="big">🎧</div>
+      <h1>You’re the DJ</h1>
+      <p>Queue songs on this car’s speakers for the rest of your ride. No app or login needed.</p>
+      <button class="primary" id="joinBtn">Start picking songs</button>
+      <div class="error" id="joinError"></div>
+      <div class="steps">
+        <div><span>🔎</span>Find a song</div>
+        <div><span>➕</span>Add it</div>
+        <div><span>🔊</span>Hear it</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="ended" hidden>
+    <div class="hero">
+      <div class="big">👋</div>
+      <h1>Thanks for riding</h1>
+      <p>This ride’s music session has ended. Hope you enjoyed the soundtrack.</p>
+    </div>
+  </section>
+
+  <section id="app" hidden>
+    <div class="now" id="nowCard" hidden>
+      <div class="bg" id="nowBg"></div>
+      <div id="nowArt"></div>
+      <div style="min-width:0">
+        <div class="eyebrow" id="nowLabel">Now playing</div>
+        <div class="title" id="nowTitle"></div>
+        <div class="artist" id="nowArtist"></div>
+        <div class="bar"><div id="nowBar"></div></div>
+      </div>
+      <button class="skip" id="skipBtn">⏭ Vote to skip <small id="skipInfo"></small></button>
+    </div>
+
+    <div class="section-head"><h2>Your songs</h2><span class="count" id="count"></span></div>
+    <div class="meter" id="meter"></div>
+    <div class="list" id="mine"></div>
+
+    <div class="search">
+      <form id="searchForm" role="search">
+        <span class="icon">🔍</span>
+        <input type="search" id="q" placeholder="Search songs or artists" autocomplete="off" enterkeyhint="search" maxlength="100">
+        <button type="button" class="clear" id="clearBtn" aria-label="Clear search" hidden>✕</button>
+      </form>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div id="discover"></div>
+    <div id="results" hidden></div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const GENRES = [
+    ['House', 'genre:"house"'], ['Hip-Hop', 'genre:"hip hop"'], ['Pop', 'genre:"pop"'], ['R&B', 'genre:"r&b"'],
+    ['Dance', 'genre:"dance"'], ['Rock', 'genre:"rock"'], ['Latin', 'genre:"latin"'], ['Country', 'genre:"country"'],
+    ['2000s', 'year:2000-2009'], ['90s', 'year:1990-1999'],
+  ];
+  let state = { active: false, songs: [], limit: 5 };
+  let fetchedAt = Date.now();
+  let sections = null;
+  let activeChip = null;
+
+  // ---------- helpers ----------
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function art(track, className) {
+    if (!track.art) return el('div', `noart ${className || ''}`);
+    const img = el('img', className);
+    img.src = track.art;
+    img.alt = '';
+    img.loading = 'lazy';
+    return img;
+  }
+  let toastTimer;
+  function toast(message, bad = false) {
+    const t = $('toast');
+    t.textContent = message;
+    t.className = `toast show${bad ? ' bad' : ''}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
+  }
+  async function call(path, options = {}) {
+    const res = await fetch(path, { ...options, credentials: 'same-origin' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(body.error || 'Something went wrong.'), { status: res.status });
+    return body;
+  }
+  function show(view) {
+    for (const id of ['join', 'app', 'ended']) $(id).hidden = id !== view;
+    $('ridePill').hidden = view !== 'app';
+  }
+  const queuedIds = () => new Set(state.songs.map((s) => s.id));
+  const isFull = () => state.songs.length >= state.limit;
+
+  // ---------- add buttons (shared by cards and rows) ----------
+  function addButton(track) {
+    const btn = el('button', 'add', '+');
+    btn.dataset.id = track.id;
+    btn.setAttribute('aria-label', `Add ${track.name}`);
+    btn.onclick = () => add(track);
+    return btn;
+  }
+  function syncAddButtons() {
+    const queued = queuedIds();
+    for (const btn of document.querySelectorAll('.add')) {
+      const done = queued.has(btn.dataset.id);
+      btn.classList.toggle('done', done);
+      btn.textContent = done ? '✓' : '+';
+      btn.disabled = done || isFull();
+    }
+  }
+
+  // ---------- now playing ----------
+  function renderNow() {
+    const now = state.nowPlaying;
+    $('nowCard').hidden = !now;
+    if (!now) return;
+    const mine = state.songs.some((s) => s.id === now.id);
+    $('nowLabel').textContent = mine ? 'Now playing · your pick' : 'Now playing';
+    $('nowTitle').textContent = now.name;
+    $('nowArtist').textContent = now.artists;
+    $('nowArt').replaceChildren(art(now));
+    $('nowBg').style.backgroundImage = now.art ? `url("${now.art}")` : 'none';
+    const skip = state.skip || { votes: 0, needed: 1, voted: false };
+    $('skipBtn').disabled = skip.voted;
+    $('skipBtn').firstChild.textContent = skip.voted ? '✓ Voted to skip ' : '⏭ Vote to skip ';
+    $('skipInfo').textContent = skip.needed > 1 ? `${skip.votes}/${skip.needed} votes` : '';
+    tickProgress();
+  }
+  function tickProgress() {
+    const now = state.nowPlaying;
+    if (!now || !now.durationMs) return;
+    const elapsed = now.isPlaying ? Date.now() - fetchedAt : 0;
+    $('nowBar').style.width = `${Math.min(100, ((now.progressMs + elapsed) / now.durationMs) * 100)}%`;
+  }
+
+  // ---------- your songs ----------
+  function renderMine() {
+    $('count').textContent = `${state.songs.length} of ${state.limit}`;
+    $('meter').replaceChildren(...Array.from({ length: state.limit }, (_, i) => el('i', i < state.songs.length ? 'on' : '')));
+    const rows = state.songs.map((s) => {
+      const row = el('div', 'row');
+      const meta = el('div', 'meta');
+      meta.append(el('div', 'name', s.name), el('div', 'artists', s.artists));
+      row.append(art(s), meta, el('span', `tag ${s.status === 'playing' ? 'playing' : ''}`, s.status === 'playing' ? '▶ Playing' : 'Up next'));
+      return row;
+    });
+    if (!rows.length) rows.push(el('div', 'empty', 'Nothing queued yet. Your first song plays right away!'));
+    $('mine').replaceChildren(...rows);
+  }
+
+  function render() {
+    renderNow();
+    renderMine();
+    syncAddButtons();
+  }
+
+  // ---------- discovery ----------
+  function card(track) {
+    const c = el('div', 'card');
+    const a = el('div', 'art');
+    a.append(art(track), addButton(track));
+    c.append(a, el('div', 'name', track.name), el('div', 'artists', track.artists));
+    return c;
+  }
+  function renderDiscover() {
+    const parts = [];
+    if (!sections) parts.push(el('div', 'section-head'), el('div', 'skeleton'));
+    for (const section of sections || []) {
+      const head = el('div', 'section-head');
+      head.append(el('h2', null, section.title));
+      const shelf = el('div', 'shelf');
+      shelf.append(...section.tracks.map(card));
+      parts.push(head, shelf);
+    }
+    if (sections && !sections.length) parts.push(el('div', 'empty', 'Search for anything above.'));
+    $('discover').replaceChildren(...parts);
+    syncAddButtons();
+  }
+  async function loadDiscover() {
+    try {
+      sections = (await call('/api/recommendations')).sections;
+    } catch {
+      sections = [];
+    }
+    renderDiscover();
+  }
+  function renderChips() {
+    $('chips').replaceChildren(...GENRES.map(([label, q]) => {
+      const chip = el('button', `chip${activeChip === label ? ' on' : ''}`, label);
+      chip.type = 'button';
+      chip.onclick = () => {
+        if (activeChip === label) return showDiscover();
+        activeChip = label;
+        $('q').value = '';
+        renderChips();
+        runSearch(q, label, true);
+      };
+      return chip;
+    }));
+  }
+
+  // ---------- search ----------
+  function showDiscover() {
+    activeChip = null;
+    $('q').value = '';
+    $('clearBtn').hidden = true;
+    $('results').hidden = true;
+    $('discover').hidden = false;
+    renderChips();
+  }
+  async function runSearch(q, label, shuffle = false) {
+    $('discover').hidden = true;
+    $('results').hidden = false;
+    const head = el('div', 'section-head');
+    const back = el('button', 'back', '← Suggestions');
+    back.onclick = showDiscover;
+    head.append(el('h2', null, label), back);
+    $('results').replaceChildren(head, el('div', 'skeleton'));
+    try {
+      const { tracks } = await call(`/api/search?q=${encodeURIComponent(q)}${shuffle ? '&shuffle=1' : ''}`);
+      const list = el('div', 'list');
+      for (const t of tracks) {
+        const row = el('div', 'row');
+        const meta = el('div', 'meta');
+        meta.append(el('div', 'name', t.name), el('div', 'artists', t.artists));
+        row.append(art(t), meta, addButton(t));
+        list.append(row);
+      }
+      if (!tracks.length) list.append(el('div', 'empty', 'No songs found. Try another search.'));
+      $('results').replaceChildren(head, list);
+      syncAddButtons();
+    } catch (err) {
+      handleError(err);
+      $('results').replaceChildren(head, el('div', 'empty', 'Search didn’t work. Try again.'));
+    }
+  }
+
+  // ---------- actions ----------
+  async function refresh() {
+    try {
+      state = await call('/api/me');
+      fetchedAt = Date.now();
+    } catch { return; }
+    if (state.active) {
+      const wasHidden = $('app').hidden;
+      show('app');
+      render();
+      if (wasHidden && !sections) loadDiscover();
+    } else {
+      show(state.banned ? 'ended' : 'join');
+    }
+  }
+  async function join() {
+    const btn = $('joinBtn');
+    btn.disabled = true;
+    btn.textContent = 'Joining…';
+    $('joinError').textContent = '';
+    try {
+      await call('/api/join', { method: 'POST' });
+      await refresh();
+    } catch (err) {
+      if (err.status === 403) return show('ended');
+      $('joinError').textContent = err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Start picking songs';
+    }
+  }
+  async function add(track) {
+    const first = state.songs.length === 0;
+    try {
+      state = await call('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId: track.id }),
+      });
+      fetchedAt = Date.now();
+      render();
+      toast(first ? `▶ Playing “${track.name}” now` : `Added “${track.name}”`);
+      if (first) setTimeout(refresh, 1500);
+    } catch (err) {
+      handleError(err);
+    }
+  }
+  async function voteSkip() {
+    $('skipBtn').disabled = true;
+    try {
+      state = await call('/api/skip', { method: 'POST' });
+      fetchedAt = Date.now();
+      render();
+      if (!state.skip?.voted) { toast('Skipped ⏭'); setTimeout(refresh, 1500); }
+      else toast('Vote counted. Waiting on the others…');
+    } catch (err) {
+      handleError(err);
+      render();
+    }
+  }
+  function handleError(err) {
+    if (err.status === 401) return refresh();
+    toast(err.message, true);
+  }
+
+  // ---------- wiring ----------
+  $('joinBtn').onclick = join;
+  $('skipBtn').onclick = voteSkip;
+  $('searchForm').onsubmit = (event) => {
+    event.preventDefault();
+    const q = $('q').value.trim();
+    if (!q) return showDiscover();
+    $('q').blur();
+    activeChip = null;
+    renderChips();
+    runSearch(q, `Results for “${q}”`);
+  };
+  $('q').oninput = () => { $('clearBtn').hidden = !$('q').value; };
+  $('clearBtn').onclick = showDiscover;
+
+  renderChips();
+  renderDiscover();
+  refresh();
+  setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 5000);
+  setInterval(tickProgress, 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+</script>
+</body>
+</html>
